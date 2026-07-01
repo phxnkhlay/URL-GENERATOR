@@ -13,8 +13,8 @@ permissions:
   contents: write
 
 env:
-  OWNER: "uppermoon77"
-  OUT_FILE: "data/uppermoon77_all_raw.csv"
+  OWNER: "phxnkhlay"
+  OUT_FILE: "data/phxnkhlay_all_raw.csv"
   WORKERS: "10"
   PYTHON_VERSION: "3.11"
 
