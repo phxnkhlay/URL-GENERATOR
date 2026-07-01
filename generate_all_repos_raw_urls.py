@@ -2,15 +2,15 @@
 """
 generate_all_repos_raw_urls.py
 
-Ambil semua file dari SELURUH repository milik satu user/org (contoh: uppermoon77),
+Ambil semua file dari SELURUH repository milik satu user/org (contoh: phxnkhlay),
 buat URL raw GitHub untuk tiap file, lalu simpan ke CSV dan XLSX.
 
 Contoh pakai (publik repos):
-  python generate_all_repos_raw_urls.py uppermoon77 --out data/uppermoon77_all_raw.csv
+  python generate_all_repos_raw_urls.py phxnkhlay --out data/phxnkhlay_all_raw.csv
 
 Jika ingin sertakan private repos:
   export GITHUB_TOKEN="ghp_..."  # PAT scope: repo
-  python generate_all_repos_raw_urls.py uppermoon77 --out data/uppermoon77_all_raw.csv --workers 10
+  python generate_all_repos_raw_urls.py phxnkhlay --out data/phxnkhlay_all_raw.csv --workers 10
 """
 from __future__ import annotations
 
@@ -103,7 +103,7 @@ def build_raw_rows_for_repo(owner: str, repo_item: Dict[str, Any], token: Option
 
 def main():
     ap = argparse.ArgumentParser(description="Generate raw.githubusercontent.com URLs untuk seluruh repos milik user/org.")
-    ap.add_argument("owner", help="Username/Org GitHub. Contoh: uppermoon77")
+    ap.add_argument("owner", help="Username/Org GitHub. Contoh: phxnkhlay")
     ap.add_argument("--token", default=os.getenv("GITHUB_TOKEN"), help="GitHub PAT (opsional). Bisa pakai env GITHUB_TOKEN")
     ap.add_argument("--out", default=None, help="Nama file output (.csv atau .xlsx). Default: <owner>-all-raw_urls.csv")
     ap.add_argument("--workers", type=int, default=6, help="Thread workers paralel (default 6)")
