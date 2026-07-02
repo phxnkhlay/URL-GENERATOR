@@ -2,6 +2,12 @@
 alturl_bulk_shorten.py,.github/workflows/shorten-urls.yml,1834,main,https://raw.githubusercontent.com/phxnkhlay/alturl_bulk_shorten.py/main/.github/workflows/shorten-urls.yml
 alturl_bulk_shorten.py,alturl_bulk_shorten.py,13580,main,https://raw.githubusercontent.com/phxnkhlay/alturl_bulk_shorten.py/main/alturl_bulk_shorten.py
 alturl_bulk_shorten.py,hasil_shorturl.csv,3878,main,https://raw.githubusercontent.com/phxnkhlay/alturl_bulk_shorten.py/main/hasil_shorturl.csv
+URL-GENERATOR,.github/workflows/raw-urls.yml,2168,main,https://raw.githubusercontent.com/phxnkhlay/URL-GENERATOR/main/.github/workflows/raw-urls.yml
+URL-GENERATOR,data/phxnkhlay_all_raw.csv,5006,main,https://raw.githubusercontent.com/phxnkhlay/URL-GENERATOR/main/data/phxnkhlay_all_raw.csv
+URL-GENERATOR,data/phxnkhlay_all_raw.xlsx,6254,main,https://raw.githubusercontent.com/phxnkhlay/URL-GENERATOR/main/data/phxnkhlay_all_raw.xlsx
+URL-GENERATOR,data/uppermoon77_all_raw.csv,42049,main,https://raw.githubusercontent.com/phxnkhlay/URL-GENERATOR/main/data/uppermoon77_all_raw.csv
+URL-GENERATOR,data/uppermoon77_all_raw.xlsx,15157,main,https://raw.githubusercontent.com/phxnkhlay/URL-GENERATOR/main/data/uppermoon77_all_raw.xlsx
+URL-GENERATOR,generate_all_repos_raw_urls.py,6525,main,https://raw.githubusercontent.com/phxnkhlay/URL-GENERATOR/main/generate_all_repos_raw_urls.py
 markpom,.github/workflows/main.yml,937,main,https://raw.githubusercontent.com/phxnkhlay/markpom/main/.github/workflows/main.yml
 markpom,MP01JANUARI2027,588660,main,https://raw.githubusercontent.com/phxnkhlay/markpom/main/MP01JANUARI2027
 markpom,MP02JANUARI2027,588660,main,https://raw.githubusercontent.com/phxnkhlay/markpom/main/MP02JANUARI2027
@@ -35,9 +41,3 @@ markpom,MP29JANUARI2027,588660,main,https://raw.githubusercontent.com/phxnkhlay/
 markpom,MP30JANUARI2027,588660,main,https://raw.githubusercontent.com/phxnkhlay/markpom/main/MP30JANUARI2027
 markpom,MP31JANUARI2027,588660,main,https://raw.githubusercontent.com/phxnkhlay/markpom/main/MP31JANUARI2027
 markpom,update_github_file.py,14662,main,https://raw.githubusercontent.com/phxnkhlay/markpom/main/update_github_file.py
-URL-GENERATOR,.github/workflows/raw-urls.yml,2168,main,https://raw.githubusercontent.com/phxnkhlay/URL-GENERATOR/main/.github/workflows/raw-urls.yml
-URL-GENERATOR,data/phxnkhlay_all_raw.csv,4252,main,https://raw.githubusercontent.com/phxnkhlay/URL-GENERATOR/main/data/phxnkhlay_all_raw.csv
-URL-GENERATOR,data/phxnkhlay_all_raw.xlsx,6059,main,https://raw.githubusercontent.com/phxnkhlay/URL-GENERATOR/main/data/phxnkhlay_all_raw.xlsx
-URL-GENERATOR,data/uppermoon77_all_raw.csv,42049,main,https://raw.githubusercontent.com/phxnkhlay/URL-GENERATOR/main/data/uppermoon77_all_raw.csv
-URL-GENERATOR,data/uppermoon77_all_raw.xlsx,15157,main,https://raw.githubusercontent.com/phxnkhlay/URL-GENERATOR/main/data/uppermoon77_all_raw.xlsx
-URL-GENERATOR,generate_all_repos_raw_urls.py,6525,main,https://raw.githubusercontent.com/phxnkhlay/URL-GENERATOR/main/generate_all_repos_raw_urls.py
