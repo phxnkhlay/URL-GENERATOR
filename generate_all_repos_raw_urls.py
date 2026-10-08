@@ -2,165 +2,832 @@
 """
 generate_all_repos_raw_urls.py
 
-Ambil semua file dari SELURUH repository milik satu user/org (contoh: phxnkhlay),
-buat URL raw GitHub untuk tiap file, lalu simpan ke CSV dan XLSX.
+Ambil SEMUA FILE dari seluruh repository GitHub milik satu user/org,
+kemudian:
 
-Contoh pakai (publik repos):
-  python generate_all_repos_raw_urls.py phxnkhlay --out data/phxnkhlay_all_raw.csv
+1. Membaca NAMA FILE / PATH FILE
+2. Mencari tanggal + bulan + tahun di dalam nama file
+3. HANYA mengambil file yang periodenya tahun 2027
+4. Mengurutkan:
+      JANUARI
+      FEBRUARI
+      MARET
+      APRIL
+      MEI
+      JUNI
+      JULI
+      AGUSTUS
+      SEPTEMBER
+      OKTOBER
+      NOVEMBER
+      DESEMBER
+5. Di dalam bulan diurutkan tanggal 01 -> 31
+6. Prefix file/repository TIDAK menjadi patokan
+7. Menyimpan hasil ke CSV dan XLSX
 
-Jika ingin sertakan private repos:
-  export GITHUB_TOKEN="ghp_..."  # PAT scope: repo
-  python generate_all_repos_raw_urls.py phxnkhlay --out data/phxnkhlay_all_raw.csv --workers 10
+Contoh nama file yang dikenali:
+
+    AL01JANUARI2027
+    AP02JANUARI2027
+    ABC15FEBRUARI2027
+    XX31MARET2027
+    FILE01DESEMBER2027
+
+Prefix AL / AP / ABC / XX / dll tidak berpengaruh.
+
+Cara menjalankan:
+
+    python generate_all_repos_raw_urls.py phxnkhlay
+
+Output:
+
+    phxnkhlay-2027-raw_urls.csv
+    phxnkhlay-2027-raw_urls.xlsx
+
+Private repository:
+
+Windows CMD:
+    set GITHUB_TOKEN=ghp_xxxxxxxxx
+
+PowerShell:
+    $env:GITHUB_TOKEN="ghp_xxxxxxxxx"
+
+Linux/Mac:
+    export GITHUB_TOKEN="ghp_xxxxxxxxx"
+
+Lalu:
+
+    python generate_all_repos_raw_urls.py phxnkhlay
 """
+
 from __future__ import annotations
 
 import argparse
 import os
+import re
 import sys
 import time
+
 from typing import Any, Dict, List, Optional
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import pandas as pd
 import requests
 
+
+# ============================================================
+# CONFIG
+# ============================================================
+
 GITHUB_API = "https://api.github.com"
 PER_PAGE = 100
 
+TARGET_YEAR = 2027
 
-def github_get(url: str, token: Optional[str] = None, params: Dict[str, Any] | None = None, timeout: int = 30):
-    headers = {"Accept": "application/vnd.github.v3+json"}
+MONTHS = {
+    "JANUARI": 1,
+    "FEBRUARI": 2,
+    "MARET": 3,
+    "APRIL": 4,
+    "MEI": 5,
+    "JUNI": 6,
+    "JULI": 7,
+    "AGUSTUS": 8,
+    "SEPTEMBER": 9,
+    "OKTOBER": 10,
+    "NOVEMBER": 11,
+    "DESEMBER": 12,
+}
+
+
+# ============================================================
+# GITHUB REQUEST
+# ============================================================
+
+def github_get(
+    url: str,
+    token: Optional[str] = None,
+    params: Dict[str, Any] | None = None,
+    timeout: int = 30,
+):
+    headers = {
+        "Accept": "application/vnd.github.v3+json"
+    }
+
     if token:
         headers["Authorization"] = f"token {token}"
-    r = requests.get(url, headers=headers, params=params, timeout=timeout)
 
-    # Sederhana: handle rate limit (403 + remaining=0) -> tunggu sampai reset
-    if r.status_code == 403 and r.headers.get("X-RateLimit-Remaining") == "0":
-        reset = int(r.headers.get("X-RateLimit-Reset", time.time() + 60))
-        wait = max(5, reset - int(time.time()) + 3)
-        print(f"[WARN] Rate limited. Tidur {wait} detik ...", file=sys.stderr)
+    r = requests.get(
+        url,
+        headers=headers,
+        params=params,
+        timeout=timeout
+    )
+
+    # Handle GitHub rate limit
+    if (
+        r.status_code == 403
+        and r.headers.get("X-RateLimit-Remaining") == "0"
+    ):
+        reset = int(
+            r.headers.get(
+                "X-RateLimit-Reset",
+                time.time() + 60
+            )
+        )
+
+        wait = max(
+            5,
+            reset - int(time.time()) + 3
+        )
+
+        print(
+            f"[WARN] Rate limited. "
+            f"Tidur {wait} detik...",
+            file=sys.stderr
+        )
+
         time.sleep(wait)
-        r = requests.get(url, headers=headers, params=params, timeout=timeout)
+
+        r = requests.get(
+            url,
+            headers=headers,
+            params=params,
+            timeout=timeout
+        )
+
     return r
 
 
-def list_repos_for_user(owner: str, token: Optional[str] = None) -> List[Dict[str, Any]]:
-    """
-    Ambil daftar repos milik user/org (public jika tanpa token).
-    """
+# ============================================================
+# LIST ALL REPOSITORIES
+# ============================================================
+
+def list_repos_for_user(
+    owner: str,
+    token: Optional[str] = None
+) -> List[Dict[str, Any]]:
+
     repos: List[Dict[str, Any]] = []
+
     page = 1
+
     while True:
+
         url = f"{GITHUB_API}/users/{owner}/repos"
-        params = {"per_page": PER_PAGE, "page": page, "type": "all", "sort": "full_name", "direction": "asc"}
-        r = github_get(url, token=token, params=params)
+
+        params = {
+            "per_page": PER_PAGE,
+            "page": page,
+            "type": "all",
+            "sort": "full_name",
+            "direction": "asc",
+        }
+
+        r = github_get(
+            url,
+            token=token,
+            params=params
+        )
+
         if r.status_code != 200:
-            raise RuntimeError(f"Gagal list repos {owner}: {r.status_code} {r.text}")
+            raise RuntimeError(
+                f"Gagal list repos {owner}: "
+                f"{r.status_code} {r.text}"
+            )
+
         items = r.json()
+
         if not items:
             break
+
         repos.extend(items)
+
         if len(items) < PER_PAGE:
             break
+
         page += 1
+
     return repos
 
 
-def get_tree_recursive(owner: str, repo: str, branch: str, token: Optional[str] = None) -> Dict[str, Any]:
-    """
-    /repos/{owner}/{repo}/git/trees/{branch}?recursive=1
-    """
-    url = f"{GITHUB_API}/repos/{owner}/{repo}/git/trees/{branch}"
-    params = {"recursive": 1}
-    r = github_get(url, token=token, params=params)
-    if r.status_code == 404:  # fallback refs/heads/<branch>
-        url2 = f"{GITHUB_API}/repos/{owner}/{repo}/git/trees/refs/heads/{branch}"
-        r = github_get(url2, token=token, params=params)
+# ============================================================
+# GET REPOSITORY TREE
+# ============================================================
+
+def get_tree_recursive(
+    owner: str,
+    repo: str,
+    branch: str,
+    token: Optional[str] = None
+) -> Dict[str, Any]:
+
+    url = (
+        f"{GITHUB_API}/repos/"
+        f"{owner}/{repo}/git/trees/{branch}"
+    )
+
+    params = {
+        "recursive": 1
+    }
+
+    r = github_get(
+        url,
+        token=token,
+        params=params
+    )
+
+    # Fallback branch reference
+    if r.status_code == 404:
+
+        url2 = (
+            f"{GITHUB_API}/repos/"
+            f"{owner}/{repo}/git/trees/"
+            f"refs/heads/{branch}"
+        )
+
+        r = github_get(
+            url2,
+            token=token,
+            params=params
+        )
+
     if r.status_code != 200:
-        raise RuntimeError(f"Gagal ambil tree {owner}/{repo}@{branch}: {r.status_code} {r.text}")
+        raise RuntimeError(
+            f"Gagal ambil tree "
+            f"{owner}/{repo}@{branch}: "
+            f"{r.status_code} {r.text}"
+        )
+
     return r.json()
 
 
-def build_raw_rows_for_repo(owner: str, repo_item: Dict[str, Any], token: Optional[str] = None) -> List[Dict[str, Any]]:
+# ============================================================
+# EXTRACT TANGGAL DARI NAMA FILE
+# ============================================================
+
+def extract_date_from_filename(
+    path: str
+) -> Optional[tuple[int, int, int]]:
+
+    """
+    Mencari pola:
+
+        DDMMMMYYYY
+
+    Contoh:
+
+        AL01JANUARI2027
+        AP15FEBRUARI2027
+        TEST31DESEMBER2027
+
+    Prefix apa pun diperbolehkan.
+
+    Hanya tahun 2027 yang diterima.
+    """
+
+    if not path:
+        return None
+
+    # Gunakan nama file/path sebagai sumber data.
+    #
+    # Contoh:
+    # folder/AL01JANUARI2027.m3u
+    #
+    # tetap akan terbaca.
+
+    name = os.path.basename(path).upper()
+
+    pattern = re.compile(
+        r"(?<!\d)"
+        r"(\d{1,2})"
+        r"(JANUARI|FEBRUARI|MARET|APRIL|MEI|JUNI|JULI|"
+        r"AGUSTUS|SEPTEMBER|OKTOBER|NOVEMBER|DESEMBER)"
+        r"(2027)"
+        r"(?!\d)"
+    )
+
+    match = pattern.search(name)
+
+    if not match:
+        return None
+
+    day = int(match.group(1))
+
+    month_name = match.group(2)
+
+    year = int(match.group(3))
+
+    month = MONTHS[month_name]
+
+    # Validasi tanggal
+    if day < 1 or day > 31:
+        return None
+
+    return (
+        year,
+        month,
+        day
+    )
+
+
+# ============================================================
+# PROCESS SATU REPOSITORY
+# ============================================================
+
+def build_rows_for_repo(
+    owner: str,
+    repo_item: Dict[str, Any],
+    token: Optional[str] = None
+) -> List[Dict[str, Any]]:
+
     repo_name = repo_item.get("name")
-    branch = repo_item.get("default_branch") or "main"
+
+    branch = (
+        repo_item.get("default_branch")
+        or "main"
+    )
+
     try:
-        tree_json = get_tree_recursive(owner, repo_name, branch, token=token)
+
+        tree_json = get_tree_recursive(
+            owner,
+            repo_name,
+            branch,
+            token=token
+        )
+
     except Exception as e:
-        print(f"[ERROR] {repo_name}: {e}", file=sys.stderr)
-        return [{"repo": repo_name, "path": None, "size": None, "branch": branch, "raw_url": None, "error": str(e)}]
+
+        print(
+            f"[ERROR] {repo_name}: {e}",
+            file=sys.stderr
+        )
+
+        return []
 
     rows: List[Dict[str, Any]] = []
+
     for node in tree_json.get("tree", []):
+
+        # Hanya file
         if node.get("type") != "blob":
             continue
+
         path = node.get("path")
-        size = node.get("size")
-        raw_url = f"https://raw.githubusercontent.com/{owner}/{repo_name}/{branch}/{path}"
-        rows.append({"repo": repo_name, "path": path, "size": size, "branch": branch, "raw_url": raw_url})
+
+        if not path:
+            continue
+
+        # ====================================================
+        # PENTING:
+        # TANGGAL DIAMBIL DARI NAMA FILE
+        # BUKAN NAMA REPOSITORY
+        # ====================================================
+
+        date_info = extract_date_from_filename(
+            path
+        )
+
+        # Tidak ada tanggal 2027 -> skip
+        if date_info is None:
+            continue
+
+        year, month, day = date_info
+
+        raw_url = (
+            f"https://raw.githubusercontent.com/"
+            f"{owner}/"
+            f"{repo_name}/"
+            f"{branch}/"
+            f"{path}"
+        )
+
+        rows.append(
+            {
+                "repo": repo_name,
+                "file": os.path.basename(path),
+                "path": path,
+                "size": node.get("size"),
+                "branch": branch,
+                "year": year,
+                "month": month,
+                "day": day,
+                "raw_url": raw_url,
+            }
+        )
+
     return rows
 
 
+# ============================================================
+# SORTING
+# ============================================================
+
+def sort_rows(
+    rows: List[Dict[str, Any]]
+) -> List[Dict[str, Any]]:
+
+    """
+    Urutan:
+
+        Tahun
+        Bulan
+        Tanggal
+        Nama file
+        Repository
+        Path
+    """
+
+    return sorted(
+        rows,
+        key=lambda row: (
+            row.get("year", 9999),
+            row.get("month", 99),
+            row.get("day", 99),
+            (row.get("file") or "").upper(),
+            (row.get("repo") or "").upper(),
+            (row.get("path") or "").upper(),
+        )
+    )
+
+
+# ============================================================
+# MAIN
+# ============================================================
+
 def main():
-    ap = argparse.ArgumentParser(description="Generate raw.githubusercontent.com URLs untuk seluruh repos milik user/org.")
-    ap.add_argument("owner", help="Username/Org GitHub. Contoh: phxnkhlay")
-    ap.add_argument("--token", default=os.getenv("GITHUB_TOKEN"), help="GitHub PAT (opsional). Bisa pakai env GITHUB_TOKEN")
-    ap.add_argument("--out", default=None, help="Nama file output (.csv atau .xlsx). Default: <owner>-all-raw_urls.csv")
-    ap.add_argument("--workers", type=int, default=6, help="Thread workers paralel (default 6)")
-    ap.add_argument("--only-public", action="store_true", help="Paksa hanya public repos")
-    args = ap.parse_args()
+
+    parser = argparse.ArgumentParser(
+        description=(
+            "Ambil raw URL file dari seluruh "
+            "repository GitHub dan urutkan "
+            "berdasarkan tanggal Januari-Desember 2027 "
+            "yang ditemukan di NAMA FILE."
+        )
+    )
+
+    parser.add_argument(
+        "owner",
+        help="Username / Organization GitHub"
+    )
+
+    parser.add_argument(
+        "--token",
+        default=os.getenv("GITHUB_TOKEN"),
+        help=(
+            "GitHub PAT. "
+            "Bisa menggunakan GITHUB_TOKEN."
+        )
+    )
+
+    parser.add_argument(
+        "--out",
+        default=None,
+        help=(
+            "Nama output CSV. "
+            "Default: <owner>-2027-raw_urls.csv"
+        )
+    )
+
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=6,
+        help="Jumlah proses paralel. Default 6."
+    )
+
+    parser.add_argument(
+        "--only-public",
+        action="store_true",
+        help="Hanya proses repository public."
+    )
+
+    args = parser.parse_args()
 
     owner = args.owner
+
     token = args.token
-    out_name = args.out or f"{owner}-all-raw_urls.csv"
 
-    print(f"Listing repos untuk {owner} ...")
-    repos = list_repos_for_user(owner, token=token)
+    out_name = (
+        args.out
+        or f"{owner}-2027-raw_urls.csv"
+    )
+
+
+    # ========================================================
+    # LIST REPOSITORIES
+    # ========================================================
+
+    print()
+    print("=" * 60)
+    print(
+        f"Mencari seluruh repository milik: {owner}"
+    )
+    print("=" * 60)
+
+    repos = list_repos_for_user(
+        owner,
+        token=token
+    )
+
     if args.only_public:
-        repos = [r for r in repos if not r.get("private", False)]
-    print(f"Ditemukan {len(repos)} repo. Proses paralel {args.workers} workers ...")
 
-    all_rows: List[Dict[str, Any]] = []
-    with ThreadPoolExecutor(max_workers=args.workers) as ex:
-        futmap = {ex.submit(build_raw_rows_for_repo, owner, repo, token): repo for repo in repos}
-        for fut in as_completed(futmap):
-            repo = futmap[fut]
+        repos = [
+            r for r in repos
+            if not r.get("private", False)
+        ]
+
+    print(
+        f"Ditemukan {len(repos)} repository."
+    )
+
+    print(
+        f"Workers: {args.workers}"
+    )
+
+    print()
+
+
+    # ========================================================
+    # PROCESS SEMUA REPOSITORY
+    # ========================================================
+
+    all_rows: List[
+        Dict[str, Any]
+    ] = []
+
+    with ThreadPoolExecutor(
+        max_workers=args.workers
+    ) as executor:
+
+        future_map = {
+            executor.submit(
+                build_rows_for_repo,
+                owner,
+                repo,
+                token
+            ): repo
+            for repo in repos
+        }
+
+        for future in as_completed(
+            future_map
+        ):
+
+            repo = future_map[future]
+
+            repo_name = repo.get(
+                "name",
+                "UNKNOWN"
+            )
+
             try:
-                rows = fut.result()
-                if rows:
-                    all_rows.extend(rows)
-                print(f"[OK] {repo.get('name')}: {len(rows)} entri")
+
+                rows = future.result()
+
+                all_rows.extend(
+                    rows
+                )
+
+                print(
+                    f"[OK] "
+                    f"{repo_name:<35} "
+                    f"{len(rows)} file 2027"
+                )
+
             except Exception as e:
-                print(f"[ERR] {repo.get('name')}: {e}", file=sys.stderr)
+
+                print(
+                    f"[ERROR] "
+                    f"{repo_name}: {e}",
+                    file=sys.stderr
+                )
+
+
+    # ========================================================
+    # CHECK HASIL
+    # ========================================================
 
     if not all_rows:
-        print("Tidak ada file yang terkumpul. Keluar.")
+
+        print()
+        print(
+            "TIDAK ADA FILE 2027 "
+            "YANG DITEMUKAN."
+        )
+
+        print(
+            "Pastikan nama file mengandung pola "
+            "seperti:"
+        )
+
+        print(
+            "AL01JANUARI2027"
+        )
+
         sys.exit(0)
 
-    df = pd.DataFrame(all_rows)
-    # Normalisasi kolom
-    cols = ["repo", "path", "size", "branch", "raw_url"]
-    for c in cols:
-        if c not in df.columns:
-            df[c] = None
-    df = df[cols]
 
-    # Simpan CSV
-    os.makedirs(os.path.dirname(out_name) or ".", exist_ok=True)
-    csv_path = out_name if out_name.lower().endswith(".csv") else os.path.splitext(out_name)[0] + ".csv"
-    df.to_csv(csv_path, index=False, encoding="utf-8-sig")
-    print(f"Simpan CSV: {csv_path}")
+    # ========================================================
+    # SORT
+    # ========================================================
 
-    # Simpan XLSX juga
-    xlsx_path = os.path.splitext(csv_path)[0] + ".xlsx"
+    print()
+    print(
+        "Mengurutkan file berdasarkan "
+        "JANUARI -> DESEMBER 2027..."
+    )
+
+    all_rows = sort_rows(
+        all_rows
+    )
+
+
+    # ========================================================
+    # DATAFRAME
+    # ========================================================
+
+    df = pd.DataFrame(
+        all_rows
+    )
+
+    columns = [
+        "repo",
+        "file",
+        "path",
+        "size",
+        "branch",
+        "year",
+        "month",
+        "day",
+        "raw_url",
+    ]
+
+    df = df[
+        columns
+    ]
+
+
+    # ========================================================
+    # CSV PATH
+    # ========================================================
+
+    if out_name.lower().endswith(
+        ".csv"
+    ):
+
+        csv_path = out_name
+
+    else:
+
+        csv_path = (
+            os.path.splitext(
+                out_name
+            )[0]
+            + ".csv"
+        )
+
+    os.makedirs(
+        os.path.dirname(csv_path)
+        or ".",
+        exist_ok=True
+    )
+
+
+    # ========================================================
+    # SAVE CSV
+    # ========================================================
+
+    df.to_csv(
+        csv_path,
+        index=False,
+        encoding="utf-8-sig"
+    )
+
+    print()
+    print(
+        f"CSV berhasil dibuat:"
+    )
+
+    print(
+        csv_path
+    )
+
+
+    # ========================================================
+    # SAVE XLSX
+    # ========================================================
+
+    xlsx_path = (
+        os.path.splitext(
+            csv_path
+        )[0]
+        + ".xlsx"
+    )
+
     try:
-        df.to_excel(xlsx_path, index=False)
-        print(f"Simpan Excel: {xlsx_path}")
+
+        df.to_excel(
+            xlsx_path,
+            index=False
+        )
+
+        print(
+            "Excel berhasil dibuat:"
+        )
+
+        print(
+            xlsx_path
+        )
+
     except Exception as e:
-        print("Peringatan: gagal menulis Excel:", e, file=sys.stderr)
 
-    print("Selesai. Contoh URL:", df.iloc[0]["raw_url"])
+        print(
+            f"[WARN] Gagal membuat XLSX: {e}",
+            file=sys.stderr
+        )
 
+
+    # ========================================================
+    # SUMMARY
+    # ========================================================
+
+    print()
+    print("=" * 60)
+    print("RINGKASAN")
+    print("=" * 60)
+
+    print(
+        f"Total file 2027 : {len(df)}"
+    )
+
+    print(
+        f"Januari         : "
+        f"{len(df[df['month'] == 1])}"
+    )
+
+    print(
+        f"Februari        : "
+        f"{len(df[df['month'] == 2])}"
+    )
+
+    print(
+        f"Maret           : "
+        f"{len(df[df['month'] == 3])}"
+    )
+
+    print(
+        f"April           : "
+        f"{len(df[df['month'] == 4])}"
+    )
+
+    print(
+        f"Mei             : "
+        f"{len(df[df['month'] == 5])}"
+    )
+
+    print(
+        f"Juni            : "
+        f"{len(df[df['month'] == 6])}"
+    )
+
+    print(
+        f"Juli            : "
+        f"{len(df[df['month'] == 7])}"
+    )
+
+    print(
+        f"Agustus         : "
+        f"{len(df[df['month'] == 8])}"
+    )
+
+    print(
+        f"September       : "
+        f"{len(df[df['month'] == 9])}"
+    )
+
+    print(
+        f"Oktober         : "
+        f"{len(df[df['month'] == 10])}"
+    )
+
+    print(
+        f"November        : "
+        f"{len(df[df['month'] == 11])}"
+    )
+
+    print(
+        f"Desember        : "
+        f"{len(df[df['month'] == 12])}"
+    )
+
+    print("=" * 60)
+
+
+# ============================================================
+# RUN
+# ============================================================
 
 if __name__ == "__main__":
     main()
